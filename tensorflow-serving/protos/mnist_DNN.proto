@@ -1,0 +1,23 @@
+syntax = "proto3";
+
+package mnist_DNN;
+
+service mnist_Inference {
+	
+	// get a request containing single test image
+	rpc GetInput(ImageArray) returns (Digit) {}
+	
+	// get a request containing multiple test images
+	rpc GetMultiInput(stream ImageArray) returns(Digit) {}
+
+}
+
+message ImageArray {
+	string in_type = 1;
+	repeated float image = 2;
+	int32 label = 3;
+}
+
+message Digit {
+	repeated int32 digits = 1;
+}
