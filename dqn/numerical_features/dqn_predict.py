@@ -7,7 +7,7 @@ from yahoo_finance import Share
 import datetime
 
 EPISODE = 10000 # Total episodes to run
-STEP = 300 # Step limitation in an episode, this is actually a bug in my code. This parameter should be equal or larger than the training data size. However, you may still tune this parameter by yourself, it won't occur any error.
+STEP = 10000 # Step limitation in an episode, this is actually a bug in my code. This parameter should be equal or larger than the training data size, so here I revised into a large number. However, you may still tune this parameter by yourself, it won't occur any error.
 TEST = 10 # Test episode
 
 GAMMA = 0.9 # discount factor
@@ -24,18 +24,20 @@ _ID = 2330 # By default, TSMC (2330)
 # Get stock data from yahoo finance
 stock = Share(str(_ID)+'.TW')
 today = datetime.date.today()
-stock_data = stock.get_historical(START, str(today))
-print("Historical data since", START,": ", len(stock_data))
-stock_data.reverse()
+stock_data = stock.get_historical(START, str(today)) # Total data downloaded
+print("Historical data since", START,": ", len(stock_data)) # Total length of raw data
+stock_data.reverse() # Reverse the data since it starts from the latest data.
 
-
+#----------Remove the data with 0 volume---------#
 i = 0
 while( i < len(stock_data)):
     if (int(stock_data[i].get('Volume')) <= 0):
         stock_data.remove(stock_data[i])
         i = -1
     i += 1
-
+#----------Remove the data with 0 volume---------#
+print("Remove the datas with zero volume, total data ",len(stock_data))
+#----------Count training data length---------#
 train_data = stock.get_historical(START, TRAIN_END)
 train_data.reverse()
 
@@ -45,18 +47,7 @@ while( i < len(train_data)):
         train_data.remove(train_data[i])
         i = -1
     i += 1
-
-print("Remove the datas with zero volume, total data ",len(stock_data))
-
-
-# Feed in close price
-'''
-close = np.zeros((len(stock_data)-DAY_LENGTH, DAY_LENGTH), dtype=np.float)
-for i in range(0, len(close)):
-    for j in range(0, DAY_LENGTH):
-        close[i,j] = float(stock_data[i+j].get('Close'))
-print (close)
-'''
+#----------Count training data length---------#
 
 # Available features: Close price, Volume, K, D, RSI9, MA5, MA20, MA5-MA20
 # If you add or reduce any features here, you should remember to go change the FEATURE_NUM constant
@@ -124,53 +115,50 @@ for i in xrange(len(stock_data)):
 		util.pop(0)
 		assert len(util) == (BUFFER_DAYS-1)
 
-box = np.zeros((len(data)-(BUFFER_DAYS-1),DAY_LENGTH*FEATURE_NUM), dtype = np.float)
+box = np.zeros((len(data)-(BUFFER_DAYS-1),DAY_LENGTH*FEATURE_NUM), dtype = np.float) # The size of the data
+
+# Assigning the data to the box, dor each row, there includes FEATURE_NUM*DAY_LENGTH data, there are FEATURE_NUM features and DAY_LENGTH data for a batch, we will reshape this when we feed into the placeholder.
 for m in xrange(len(data)-(BUFFER_DAYS-1)):
 	for i in xrange(FEATURE_NUM):
 		for j in xrange(DAY_LENGTH):
 			box[m][i*DAY_LENGTH+j] = data[m+j][i]
-print(box)
-
-	
+			
+# Define TWStock class	
 class TWStock():
 	def __init__(self, data, train_length):
 		self.stock_data = data
-		self.train_data = self.stock_data[0:train_length]
-		self.test_data = self.stock_data[train_length:len(stock_data)]
-		self.stock_index = 0
+		self.train_data = self.stock_data[0:train_length] # Training Data
+		self.test_data = self.stock_data[train_length:len(stock_data)] # Testing Data
+		self.stock_index = 0 # This parameter is important to understand, this index will add 1 for every step, and supposedly, it should add until the last data, instead of merely running STEP times.
 		print("Training Data: ",len(self.train_data))
 		print("Testing Data: ",len(self.test_data))
 
-	def render(self):
-		return
-
-	def train_reset(self):
+	def train_reset(self): # For each episode, reset the index into 0, i.e. start runnning from the fist batch of data again
 		self.stock_index = 0
-		return self.train_data[self.stock_index]
+		return self.train_data[self.stock_index] # Return initial state, in this code, the state is the data batch
 
-	def test_reset(self):
+	def test_reset(self): # For each episode, reset the index into 0, i.e. start runnning from the fist batch of data again
 		self.stock_index = 0
-		return self.test_data[self.stock_index]
+		return self.test_data[self.stock_index] # Return initial state, in this code, the state is the data batch
 		
-	# 0: observe, 1: having stock, 2: no stock
-	def train_step(self,action): # for training, feed training data
-		self.stock_index+=1
-		action_reward = self.train_data[self.stock_index][0] - self.train_data[self.stock_index-1][0]
+	# 0: Observe, 1: Buy, 2: Sell
+	def train_step(self,action): # For training, feed training data
+		self.stock_index+=1 # Just as I mentioned before, this means to go on to the next batch(FEATURE_NUM*DAY_LENGTH) of data
+		action_reward = self.train_data[self.stock_index][0] - self.train_data[self.stock_index-1][0] # The reward is the close price for tomorrow minus today's
 		if action == 0:
-			action_reward = 0
+			action_reward = 0 # Do nothing, 0 reward
 		elif action == 2:
 			action_reward = -1*action_reward
 		stock_done = False
 		if(self.stock_index)>= len(self.train_data)-1:
-			stock_done = True
+			stock_done = True # Already at the final state(last batch of data)
         	else:
            		stock_done = False
 		return self.train_data[self.stock_index], action_reward, stock_done, 0
 
 	def test_step(self,action): # for testing, feed testing data
 		self.stock_index+=1
-		action_reward = self.train_data[self.stock_index][0] - self.train_data[self.stock_index-1][0]
-		#action_reward = self.test_data[self.stock_index][DAY_LENGTH-1] - self.test_data[self.stock_index][DAY_LENGTH-2]
+		action_reward = self.test_data[self.stock_index][0] - self.test_data[self.stock_index-1][0]
 		if action == 0:
 			action_reward = 0
 		elif action == 2:
@@ -190,23 +178,12 @@ class DQN():
 		self.time_step = 0
 		self.epsilon = INITIAL_EPSILON
 		#self.state_dim = [1,80,80,1]
-		self.action_dim = 3
-		'''
-		self.total_updates = 0
-		self.update_target = []
-		self.last_target_layer = None
-		self.last_policy_layer = None
-		self.target_update_frequency = UPDATE_FREQUENCY
-		'''
+		self.action_dim = 3 # Totally three actions
 		self.create_Q_network()
 		self.create_training_method()
 
 		# create session
-		#g_record = tf.Graph()
-		#self.g_session = tf.InteractiveSession(graph=g_record)
 		self.t_session = tf.InteractiveSession()
-
-		#with g_record.as_default():
 		self.R = tf.placeholder("float", shape = None)
 		self.T = tf.placeholder("float", shape = None)
 		R_summ = tf.scalar_summary(tags = "testing_reward", values = self.R)
@@ -214,11 +191,10 @@ class DQN():
 
 		self.merged_summ = tf.merge_all_summaries()
 		self.writer = tf.train.SummaryWriter(logdir = "/home/airchen/Documents/coding/stock", graph = self.t_session.graph)
-
 		
 		self.t_session.run(tf.initialize_all_variables())
 	
-	def get_summ(self):
+	def get_summ(self): # For writing events to tensorboard.
 		return self.t_session, self.merged_summ, self.R,self.T, self.writer
 
 	def create_Q_network(self): # You may switch between CNN and MLP, currently CNN.
@@ -237,19 +213,21 @@ class DQN():
 		'''
 		# Use CNN
 		# weights and biases
-		W_conv1 = tf.Variable(tf.truncated_normal(shape = [8,5,1,8],stddev = 0.01))
-		b_conv1 = tf.Variable(tf.constant(0.01,shape = [8]))
-		W_conv2 = tf.Variable(tf.truncated_normal(shape = [8,2,8,4],stddev = 0.01))
-		b_conv2 = tf.Variable(tf.constant(0.01,shape = [4]))
-		W_fc = tf.Variable(tf.truncated_normal(shape = [320,self.action_dim],stddev = 0.01))
+		BIAS_SHAPE1 = 8 # May tune it as you like
+		BIAS_SHAPE2 = 4 # May tune it as you like
+		W_conv1 = tf.Variable(tf.truncated_normal(shape = [FEATURE_NUM,5,1,BIAS_SHAPE1],stddev = 0.01))
+		b_conv1 = tf.Variable(tf.constant(0.01,shape = [BIAS_SHAPE1]))
+		W_conv2 = tf.Variable(tf.truncated_normal(shape = [FEATURE_NUM,2,BIAS_SHAPE1,BIAS_SHAPE2],stddev = 0.01))
+		b_conv2 = tf.Variable(tf.constant(0.01,shape = [BIAS_SHAPE2]))
+		W_fc = tf.Variable(tf.truncated_normal(shape = [FEATURE_NUM*DAY_LENGTH*BIAS_SHAPE2,self.action_dim],stddev = 0.01))
 		b_fc = tf.Variable(tf.constant(0.01,shape = [self.action_dim]))
 
 		# Layer implementation
-		self.state_input = tf.placeholder("float",[None,80])
-		x = tf.reshape(self.state_input,[-1,8,10,1])
+		self.state_input = tf.placeholder("float",[None,FEATURE_NUM*DAY_LENGTH])
+		x = tf.reshape(self.state_input,[-1,FEATURE_NUM,DAY_LENGTH,1])
 		h_conv1 = tf.nn.relu(tf.nn.conv2d(x,W_conv1,strides = [1,1,1,1],padding = 'SAME') + b_conv1)
 		h_conv2 = tf.nn.relu(tf.nn.conv2d(h_conv1,W_conv2,strides = [1,1,1,1],padding = 'SAME') + b_conv2)
-		hidden = tf.reshape(h_conv2,[-1,320])
+		hidden = tf.reshape(h_conv2,[-1,FEATURE_NUM*DAY_LENGTH*BIAS_SHAPE2])
 		self.Q_value = tf.matmul(hidden,W_fc) + b_fc
 		
 
@@ -330,7 +308,6 @@ def main():
 				action1_count = 0
 				action2_count = 0
 				for j in xrange(STEP):
-					env.render()
 					action = agent.action(state)
 					if action == 0:
 						action0_count += 1
@@ -338,8 +315,7 @@ def main():
 						action1_count += 1
 					elif action == 2:
 						action2_count += 1
-					else:
-						print("Never come here!!")
+						
 					state, reward, done, info = env.train_step(action)
 					train_reward += reward
 					if done:
@@ -356,7 +332,6 @@ def main():
 				action1_count = 0
 				action2_count = 0
 				for j in xrange(STEP):
-					env.render()
 					action = agent.action(state) # direct action for test
 					if action == 0:
 						action0_count += 1
@@ -364,9 +339,7 @@ def main():
 						action1_count += 1
 					elif action == 2:
 						action2_count += 1
-					else:
-						print("Never come here!!")
-					
+	
 					state, reward, done, info = env.test_step(action)
 					total_reward += reward
 					if done:
@@ -377,9 +350,7 @@ def main():
 			print ("Episode: ", episode,"Training Average Reward: ",avg_train_reward, " Evaluation Average Reward: ",avg_reward)
 			record = sess.run(merged, feed_dict={R:avg_reward,T:avg_train_reward})
 			writer.add_summary(record, global_step = episode)
-			writer.flush()
-			if avg_reward >= 200:
-				break
+			writer.flush() # Remember to add this or else you will see nothing on the tensorboard
 
 if __name__ == '__main__':
 	main()
