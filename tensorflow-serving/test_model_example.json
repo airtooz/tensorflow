@@ -1,0 +1,11 @@
+{
+	"name": "test_model",
+	"in_size": 784,
+	"out_size": 10,
+	"layer_num": 4,
+	"layer_size": [512, 1024, 1024, 512],
+	"L_rate": 0.002,
+	"prob": 0.8
+}
+
+
