@@ -1,19 +1,13 @@
 from __future__ import print_function
-import gym
 import tensorflow as tf
 import numpy as np
 import random
 from collections import deque
 from yahoo_finance import Share
 import datetime
-import matplotlib.finance as finance
-import matplotlib.mlab as mlab
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 
-SAVE = False # True if you want to renew figure data, false otherwise
 EPISODE = 10000 # Total episodes to run
-STEP = 300 # Step limitation in an episode
+STEP = 300 # Step limitation in an episode, this is actually a bug in my code. This parameter should be equal or larger than the training data size. However, you may still tune this parameter by yourself, it won't occur any error.
 TEST = 10 # Test episode
 
 GAMMA = 0.9 # discount factor
@@ -23,11 +17,11 @@ INITIAL_EPSILON = 0.8 # initial large, in order to explore more
 FINAL_EPSILON = 0.1 # explore less, greedy most time
 DAY_LENGTH = 10 # the total days for a training data, also the dim of features
 FEATURE_NUM = 8 # Currently: close price, volume, K, D, RSI9, MA5, MA20, MA5-MA20
-UPDATE_FREQUENCY = 100 # target freezing, weights update frequency
-START = "2011-01-01" # Data start date
+START = "2011-01-01" # Training data start date
 TRAIN_END = "2015-12-31" # Training data end date
 _ID = 2330 # By default, TSMC (2330)
 
+# Get stock data from yahoo finance
 stock = Share(str(_ID)+'.TW')
 today = datetime.date.today()
 stock_data = stock.get_historical(START, str(today))
@@ -54,24 +48,6 @@ while( i < len(train_data)):
 
 print("Remove the datas with zero volume, total data ",len(stock_data))
 
-'''
-close = []
-for i in xrange(len(stock_data)):
-	close.append(float(stock_data[i].get('Close')))
-np.array(close)
-sigma = np.std(close)
-avg = np.mean(close)
-
-normalize_close = []
-for i in xrange(len(stock_data)):
-	normalize_close.append((close[i]-avg)/sigma)
-
-y_minlim = min(normalize_close)
-y_maxlim = max(normalize_close)
-'''
-
-
-
 
 # Feed in close price
 '''
@@ -82,18 +58,22 @@ for i in range(0, len(close)):
 print (close)
 '''
 
-# Eight features: Close price, Volume, K, D, RSI9, MA5, MA20, MA5-MA20
+# Available features: Close price, Volume, K, D, RSI9, MA5, MA20, MA5-MA20
+# If you add or reduce any features here, you should remember to go change the FEATURE_NUM constant
 
-data = np.zeros((len(stock_data)-19,FEATURE_NUM), dtype = np.float)
+BUFFER_DAYS = 20 # This parameter means that the feature that requires most days to calculate, e.g. MA20 requires 20 days (Start to have data at the 20th day). If you add something like MA30, then this parameter should be 30.
+
+data = np.zeros((len(stock_data)-(BUFFER_DAYS-1),FEATURE_NUM), dtype = np.float)
 util = []
 for i in xrange(len(stock_data)):
 	util.append(float(stock_data[i].get('Close')))
 	rise = 0.
 	fall = 0.
-	if i >= 19:
-		assert len(util) == 20
-		data[i-19][0] = float(stock_data[i].get('Close'))
-		data[i-19][1] = float(float(stock_data[i].get('Volume'))/1000000.)
+	if i >= (BUFFER_DAYS-1):
+		assert len(util) == BUFFER_DAYS
+		data[i-(BUFFER_DAYS-1)][0] = float(stock_data[i].get('Close')) # Get close price
+		data[i-(BUFFER_DAYS-1)][1] = float(float(stock_data[i].get('Volume'))/1000000.) # Get volume and count in millions
+
 		#----RSI9----
 		for j in range(len(util)-8,len(util)):
 			if util[j] >= util[j-1]:
@@ -101,9 +81,9 @@ for i in xrange(len(stock_data)):
 			else:
 				fall += (util[j-1]-util[j])
 		if rise == 0 and fall == 0:
-			data[i-19][2] = 0.5
+			data[i-(BUFFER_DAYS-1)][2] = 0.5
 		else:
-			data[i-19][2] = rise/(rise+fall)
+			data[i-(BUFFER_DAYS-1)][2] = rise/(rise+fall)
 		#----RSI9----
 		u9 = util[len(util)-9:len(util)]
 		#----RSV----		
@@ -114,91 +94,42 @@ for i in xrange(len(stock_data)):
 		#----RSV----
 
 		#----K----
-		if i == 19:
+		if i == (BUFFER_DAYS-1):
 			K = 0.5*0.6667 + RSV*0.3333
-			data[i-19][3] = K
+			data[i-(BUFFER_DAYS-1)][3] = K
 		else:
-			K = data[i-20][3]*0.6667 + RSV*0.3333
-			data[i-19][3] = K
+			K = data[i-BUFFER_DAYS][3]*0.6667 + RSV*0.3333
+			data[i-(BUFFER_DAYS-1)][3] = K
 		#----K----
 
 		#----D----
-		if i == 19:
-			data[i-19][4] = 0.5*0.6667 + K*0.3333
+		if i == (BUFFER_DAYS-1):
+			data[i-(BUFFER_DAYS-1)][4] = 0.5*0.6667 + K*0.3333
 		else:
-			data[i-19][4] = data[i-20][4]*0.6667 + K*0.3333
+			data[i-(BUFFER_DAYS-1)][4] = data[i-BUFFER_DAYS][4]*0.6667 + K*0.3333
 		#----D----
 		
 		#----MA5----
-		data[i-19][5] = sum(util[len(util)-5:len(util)])/5.0
+		data[i-(BUFFER_DAYS-1)][5] = sum(util[len(util)-5:len(util)])/5.0
 		#----MA5----
 
 		#----MA20----
-		data[i-19][6] = sum(util)/20.0
+		data[i-(BUFFER_DAYS-1)][6] = sum(util)/20.0
 		#----MA20----
 
 		#---(MA5-MA20)---
-		data[i-19][7] = data[i-19][5]-data[i-19][6]
+		data[i-(BUFFER_DAYS-1)][7] = data[i-(BUFFER_DAYS-1)][5]-data[i-(BUFFER_DAYS-1)][6]
 		#---(MA5-MA20)---
 
 		util.pop(0)
-		assert len(util) == 19
+		assert len(util) == (BUFFER_DAYS-1)
 
-box = np.zeros((len(data)-19,DAY_LENGTH*FEATURE_NUM), dtype = np.float)
-for m in xrange(len(data)-19):
+box = np.zeros((len(data)-(BUFFER_DAYS-1),DAY_LENGTH*FEATURE_NUM), dtype = np.float)
+for m in xrange(len(data)-(BUFFER_DAYS-1)):
 	for i in xrange(FEATURE_NUM):
 		for j in xrange(DAY_LENGTH):
-			box[m][i*10+j] = data[m+j][i]
+			box[m][i*DAY_LENGTH+j] = data[m+j][i]
 print(box)
-
-'''
-# Feed in images
-
-def save_img(data, filename):
-	for i in xrange(len(data)-DAY_LENGTH+1):
-		fig, ax = plt.subplots(nrows=1,ncols=1)
-		fig.set_size_inches(1,1)
-		ax.plot([i,i+1,i+2,i+3,i+4,i+5,i+6,i+7,i+8,i+9], [data[i], data[i+1], data[i+2], data[i+3], data[i+4], data[i+5], data[i+6], data[i+7], data[i+8], data[i+9]])
-		ax.set_ylim([y_minlim,y_maxlim])
-		plt.axis('off')
-		fig.savefig("/home/airchen/Documents/coding/stock/"+filename+'/'+filename+'_'+str(i)+'.png', dpi=80)
-		fig.clear()
-		plt.close(fig)
-
-def get_img(file_dir):
-	img = mpimg.imread(file_dir)
-	return img
-
-
-relative_close = []
-for i in xrange(1,len(stock_data)):
-	relative_close.append(float(stock_data[i].get('Close'))-float(stock_data[i-1].get('Close')))
-y_minlim = min(relative_close)
-y_maxlim = max(relative_close)
-
-
-if SAVE:
-	save_img(relative_close, "Close")
-
-data_length = len(relative_close)-DAY_LENGTH+1
-train_length = (data_length*4)//5
-
-train_image = []
-for i in xrange(train_length):
-	file_dir = "/home/airchen/Documents/coding/stock/Close/Close_"+str(i)+".png"
-        #temp = np.asarray(get_img(file_dir))[:,:,0]
-	train_image.append(get_img(file_dir))
-train_image = np.asarray(train_image,dtype=np.float)
-
-test_image = []
-for i in xrange(train_length:data_length):
-	file_dir = "/home/airchen/Documents/coding/stock/Close/Close_"+str(i)+".png"
-        #temp = np.asarray(get_img(file_dir))[:,:,0]
-	test_image.append(get_img(file_dir))
-test_image = np.asarray(test_image,dtype=np.float)
-
-assert len(train_image) + len(test_image) == data_length
-'''
 
 	
 class TWStock():
@@ -225,7 +156,6 @@ class TWStock():
 	def train_step(self,action): # for training, feed training data
 		self.stock_index+=1
 		action_reward = self.train_data[self.stock_index][0] - self.train_data[self.stock_index-1][0]
-		#action_reward = self.train_data[self.stock_index][DAY_LENGTH-1] - self.train_data[self.stock_index][DAY_LENGTH-2]
 		if action == 0:
 			action_reward = 0
 		elif action == 2:
@@ -291,7 +221,7 @@ class DQN():
 	def get_summ(self):
 		return self.t_session, self.merged_summ, self.R,self.T, self.writer
 
-	def create_Q_network(self): 
+	def create_Q_network(self): # You may switch between CNN and MLP, currently CNN.
 		'''
 		# Use MLP
 		# weights and biase
@@ -305,11 +235,6 @@ class DQN():
 		hidden = tf.nn.relu(tf.matmul(self.state_input,W1) + b1)
 		self.Q_value = tf.matmul(hidden,W2) + b2
 		'''
-		'''
-		# Target freezing parameters
-		policy_input = None
-		target_input = None
-		'''
 		# Use CNN
 		# weights and biases
 		W_conv1 = tf.Variable(tf.truncated_normal(shape = [8,5,1,8],stddev = 0.01))
@@ -317,17 +242,14 @@ class DQN():
 		W_conv2 = tf.Variable(tf.truncated_normal(shape = [8,2,8,4],stddev = 0.01))
 		b_conv2 = tf.Variable(tf.constant(0.01,shape = [4]))
 		W_fc = tf.Variable(tf.truncated_normal(shape = [320,self.action_dim],stddev = 0.01))
-		#W_fc = tf.Variable(tf.truncated_normal(shape = [400,self.action_dim],stddev = 0.01))
 		b_fc = tf.Variable(tf.constant(0.01,shape = [self.action_dim]))
 
 		# Layer implementation
 		self.state_input = tf.placeholder("float",[None,80])
 		x = tf.reshape(self.state_input,[-1,8,10,1])
-		#x = tf.reshape(self.state_input,[-1,10,1,1])
 		h_conv1 = tf.nn.relu(tf.nn.conv2d(x,W_conv1,strides = [1,1,1,1],padding = 'SAME') + b_conv1)
 		h_conv2 = tf.nn.relu(tf.nn.conv2d(h_conv1,W_conv2,strides = [1,1,1,1],padding = 'SAME') + b_conv2)
 		hidden = tf.reshape(h_conv2,[-1,320])
-		#hidden = tf.reshape(h_conv2,[-1,400])
 		self.Q_value = tf.matmul(hidden,W_fc) + b_fc
 		
 
@@ -358,11 +280,7 @@ class DQN():
 				y_batch.append(reward_batch[i])
 			else:
 				y_batch.append(reward_batch[i] + GAMMA*np.max(Q_value_batch[i]))
-		'''
-		for i in xrange(BATCH_SIZE):
-			for j in xrange(80):
-				print(state_batch[i][j])
-		'''
+		
 		self.optimizer.run(feed_dict = {
 			self.y_input:y_batch,
 			self.action_input:action_batch,
