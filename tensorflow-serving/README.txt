@@ -23,13 +23,23 @@ B. If you get an error about protoc-gen-grpc, open the run_codegen.sh and change
 
 -----Tensorflow serving-----
 Please clone all files in this current directory.
+Do not revise any code in mnist_client.py, mnist_server.py, mnist_DNN_train.py and the "protos" folder
+The run_codegen file shouldn't be revised unless error is occured while running it.
+The other files (with names ended in _example), can be revised or try your own data.
+
+* test_model_example.json : a file describing how you want to train your model.
+* mnist_example: files which are the image data, should be in the format of 28*28, with every element be a floating number betweeen 0 and 1. (This is the format of MNIST data, you may refer to the file containing the data and get the data you want.)
+* script_example: a file with all mnist_example file names in it (one for each line), note that you need to have all the image files in the same directory. 
 
 [DNN TRAINING USAGE]
-1. launch mnist DNN trainer by "python mnist_DNN_train.py MODEL_STRUC ITER BATCH -d [DIR]", 
-    also see "python mnist_DNN_train.py -h"
+1. You may revise "test_model_example.json" to make your own training model
+2. Launch mnist DNN trainer by "python mnist_DNN_train.py test_model_example.json ITER BATCH -d [DIR]", 
+    also see "python mnist_DNN_train.py -h". (The ITER and BATCH are parameters during training, you have to specify them, for e.g. 1000 100)
+3. After training, you should see a folder called: "model"
 
 [SERVER-CLIENT USAGE]
-1. execute ./run_codegen.sh to produce mnist_DNN_pb2.py
-2. execute server by "python mnist_serving.py TRAINED_MODEL", also see "python mnist_serving.py -h"
-3. launch client by "python mnist_client.py IMAGE -l [LABEL]", also see "python mnist_client.py -h"
+1. execute ./run_codegen.sh to produce mnist_DNN_pb2.py (do not revise anything in this produced code)
+2. execute server by "python mnist_server.py ./model/test_model.struc ./model/test_model", also see "python mnist_server.py -h"
+3. launch client by "python mnist_client.py script_example", also see "python mnist_client.py -h"
+4. If you want to try serving via different computers, you have to specify the IP addresses and port number while executing mnist_server.py and mnist_client.py. (See usage by typing -h while executing)
 -----Tensorflow serving-----
