@@ -1,2 +1,15 @@
 Training deep Q Network by feeding numerical features.
-May revise this code if you want to try different features or parameters.
+1. Note that you will need to install the following dependencies...
+@tensorflow
+@numpy
+@yahoo_finance
+@collections
+@datetime
+
+2. Note that the following changes must be made before running the code.
+@ logdir (line 191)
+
+*dqn_predict.py
+Feeding in numerical features of a stock into a cnn/mlp based dqn.
+Reward calculated by (close price 5 days later - close price tomorrow) # You may try to revise the reward if you want to!
+(This current reward methodology didn't work very well, have tried something like close price 2 days later - close price tomorrow and the results were pretty good...can't understand why...)
