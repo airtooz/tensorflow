@@ -130,7 +130,7 @@ assert len(K) == len(D)
 assert len(relative_close) < len(K)
 
 # Here is the image processing area, the processing method will also be in the documents. I will merely explain the usage here.
-for i in xrange(len(train_data)):
+for i in xrange(len(train_data)): # Some of the images won't be used due to the length of relative_close_price is shorter than the data_length.
 	if (i+1) % 10 == 0:
 		print("Processing training data ",(i+1)," out of ",len(train_data))
 		
@@ -152,9 +152,10 @@ for i in xrange(len(train_data)):
 	train_label.append(relative_close[i])
 train_image = np.asarray(train_image,dtype=np.float)
 
+# Test data are pretty much the same.
 test_image = []
 test_label = []
-for i in xrange(len(train_data),data_length): # Some of the images won't be used due to the length of relative_close_price is shorter than the data_length.
+for i in xrange(len(train_data),data_length):
 	print("Processing testing data ",(i+1)-len(train_data)," out of ",data_length-len(train_data))
 	file_dir = "/home/airchen/Documents/coding/stock/KD/KD_"+str(i)+".png"
         temp = np.asarray(get_img(file_dir))
@@ -177,45 +178,41 @@ test_image = np.asarray(test_image,dtype=np.float)
 	
 class TWStock():
 	def __init__(self,train_image,test_image,train_label,test_label):
-		self.train_image = train_image
-		self.test_image = test_image
-		self.train_label = train_label
-		self.test_label = test_label
-		self.stock_index = 0
+		self.train_image = train_image # Training image
+		self.test_image = test_image # Test image
+		self.train_label = train_label # Relative close price for training data, computing training reward.
+		self.test_label = test_label # Relative close price for test data, computing test reward.
+		self.stock_index = 0 # This parameter is important to understand, this index will add 1 for every step, and supposedly, it should add until the last data, instead of merely running STEP times.
 
 		print("Training Data: ",len(train_image))
 		print("Testing Data: ",len(test_image))
 
-	def train_reset(self):
+	def train_reset(self): # For each episode, reset the index into 0, i.e. start runnning from the fist data again
 		self.stock_index = 0
-		return self.train_image[self.stock_index]
+		return self.train_image[self.stock_index] # Return initial state, in this code, the state is the data batch
 
-	def test_reset(self):
+	def test_reset(self): # For each episode, reset the index into 0, i.e. start runnning from the fist data again
 		self.stock_index = 0
-		return self.test_image[self.stock_index]
+		return self.test_image[self.stock_index] # Return initial state, in this code, the state is the data batch
 		
-	# 0: observe, 1: having stock, 2: no stock
+	# 0: Observe, 1: Buy, 2: Sell
 	def train_step(self,action): # for training, feed training data
-		self.stock_index+=1
+		self.stock_index+=1 # Just as I mentioned before, this means to go on to the next batch(DPI*DPI) of data
 		action_reward = self.train_label[self.stock_index-1] # The last label can be omitted since the last state won't do any more actions
-		#action_reward = self.train_data[self.stock_index][0] - self.train_data[self.stock_index-1][0]
-		#action_reward = self.train_data[self.stock_index][DAY_LENGTH-1] - self.train_data[self.stock_index][DAY_LENGTH-2]
 		if action == 0:
 			action_reward = 0
 		elif action == 2:
 			action_reward = -1*action_reward
 		stock_done = False
 		if(self.stock_index)>= len(self.train_image)-1:
-			stock_done = True
+			stock_done = True # Already at the final state(last batch of data)
         	else:
            		stock_done = False
 		return self.train_image[self.stock_index], action_reward, stock_done, 0
 
-	def test_step(self,action): # for testing, feed testing data
+	def test_step(self,action): # for testing, feed testing data. Comments similar to the train_step function
 		self.stock_index+=1
 		action_reward = self.test_label[self.stock_index-1] # The last label can be omitted since the last state won't do any more actions
-		#action_reward = self.train_data[self.stock_index][0] - self.train_data[self.stock_index-1][0]
-		#action_reward = self.test_data[self.stock_index][DAY_LENGTH-1] - self.test_data[self.stock_index][DAY_LENGTH-2]
 		if action == 0:
 			action_reward = 0
 		elif action == 2:
@@ -234,29 +231,23 @@ class DQN():
 		# initialize parameters
 		self.time_step = 0
 		self.epsilon = INITIAL_EPSILON
-		#self.state_dim = [1,80,80,1]
 		self.action_dim = 3
 		self.create_Q_network()
 		self.create_training_method()
 
 		# create session
-		#g_record = tf.Graph()
-		#self.g_session = tf.InteractiveSession(graph=g_record)
 		self.t_session = tf.InteractiveSession()
-
-		#with g_record.as_default():
 		self.R = tf.placeholder("float", shape = None)
 		self.T = tf.placeholder("float", shape = None)
 		R_summ = tf.scalar_summary(tags = "testing_reward", values = self.R)
 		T_summ = tf.scalar_summary(tags = "training_reward", values = self.T)
 
 		self.merged_summ = tf.merge_all_summaries()
-		self.writer = tf.train.SummaryWriter(logdir = "/home/airchen/Documents/coding/stock", graph = self.t_session.graph)
+		self.writer = tf.train.SummaryWriter(logdir = "/home/airchen/Documents/coding/stock", graph = self.t_session.graph) # The logdir is the directory you want to log your tensorboard event files, please feel free to change it, and remember you want to always add: /home/USERNAME/ before the directory.
 
-		
 		self.t_session.run(tf.initialize_all_variables())
 	
-	def get_summ(self):
+	def get_summ(self): # For writing events to tensorboard.
 		return self.t_session, self.merged_summ, self.R,self.T, self.writer
 
 	def create_Q_network(self): 
@@ -307,7 +298,7 @@ class DQN():
 				y_batch.append(reward_batch[i])
 			else:
 				y_batch.append(reward_batch[i] + GAMMA*np.max(Q_value_batch[i]))
-				
+		#Optimize our cost		
 		self.optimizer.run(feed_dict = {
 			self.y_input:y_batch,
 			self.action_input:action_batch,
@@ -315,14 +306,14 @@ class DQN():
 
 	def egreedy_action(self,state): # during training 
 		Q_value = self.Q_value.eval(feed_dict = {self.state_input:[state]},session = self.t_session)[0] # Unknown
-		if random.random() <= self.epsilon:
+		if random.random() <= self.epsilon: # Random action by probability, i.e. exploration
 			return random.randint(0,self.action_dim-1)
 		else:
 			return np.argmax(Q_value)
-		self.epsilon -= (Initial_EPSILON-FINAL_EPSILON)/10000
+		self.epsilon -= (Initial_EPSILON-FINAL_EPSILON)/10000 # Random probability drop gradually.
 	
 	def action(self,state): # during testing
-		return np.argmax(self.Q_value.eval(feed_dict = {self.state_input:[state]})[0])
+		return np.argmax(self.Q_value.eval(feed_dict = {self.state_input:[state]})[0]) # No random action
 		
 	def perceive(self,state,action,reward,next_state,done):
 		# assign the to be made action into a one hot vector
@@ -337,21 +328,21 @@ class DQN():
 def main():
 	env = TWStock(train_image,test_image,train_label,test_label) # Initialize environment
 	agent = DQN(env) # Initialize dqn agent
-	sess,merged,R,T,writer = agent.get_summ()
+	sess,merged,R,T,writer = agent.get_summ() # Get summary for tensorboard
 	global_step = 0
 
-	for episode in xrange(EPISODE):
+	for episode in xrange(EPISODE): # for every episode, print out the current training reward and the test reward.
 		state = env.train_reset() # reset() returns observation
 		# start training
 		for step in xrange(STEP):
 			global_step +=1
 			if global_step %10 ==0:
-				print("Running STEP ",global_step)
+				print("Running STEP ",global_step) # Print out current progress
 			action = agent.egreedy_action(state) # e-greedy action for training
 			next_state,reward,done,info = env.train_step(action)
 			agent.perceive(state,action,reward,next_state,done)
 			state = next_state
-			if done:
+			if done: # break only if it run to the end of the training data, or when stock_index is equal to STEP, but it should be better satisfying the former condition.
 				break
 			
 		train_reward = 0.
@@ -403,7 +394,7 @@ def main():
 		print ("Episode: ", episode,"Training Average Reward: ",avg_train_reward, " Evaluation Average Reward: ",avg_reward)
 		record = sess.run(merged, feed_dict={R:avg_reward,T:avg_train_reward})
 		writer.add_summary(record, global_step = global_step)
-		writer.flush()
+		writer.flush() # Remember to add this or else you will see nothing on the tensorboard
 
 if __name__ == '__main__':
 	main()
