@@ -368,8 +368,7 @@ def main():
 					action1_count += 1
 				elif action == 2:
 					action2_count += 1
-				else:
-					print("Never come here!!")
+			
 				state, reward, done, info = env.train_step(action)
 				train_reward += reward
 				if done:
@@ -393,8 +392,6 @@ def main():
 					action1_count += 1
 				elif action == 2:
 					action2_count += 1
-				else:
-					print("Never come here!!")
 				
 				state, reward, done, info = env.test_step(action)
 				total_reward += reward
@@ -407,8 +404,6 @@ def main():
 		record = sess.run(merged, feed_dict={R:avg_reward,T:avg_train_reward})
 		writer.add_summary(record, global_step = global_step)
 		writer.flush()
-		if avg_reward >= 1000:
-			break
 
 if __name__ == '__main__':
 	main()
