@@ -1,1 +1,18 @@
 Train deep Q network by feeding graphical features
+1. Note that you will need to install the following dependencies...
+@tensorflow
+@numpy
+@yahoo_finance
+@collections
+@datetime
+@matplotlib
+
+2. Note that the following changes must be made before running the code.
+@ SAVE (line 14)
+@ SAVE_IMAGE_DIR (line 27)
+@ file_dir (line 137)
+@ logdir (line 246)
+
+*dqn_graph_KD.py
+Feeding in KD graphs of a stock into a cnn based dqn.
+Reward calculated by (close price 6 days later - close price tomorrow) # You may try to revise the reward if you want to!
