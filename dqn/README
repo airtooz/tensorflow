@@ -1,0 +1,5 @@
+* numerical_features
+Feeding in numerous different numerical features into the deep q network, user may add more features if they like. (Should beware of the usage file)
+
+* graphical_features
+Feeding in graphical features into the deep q network.
