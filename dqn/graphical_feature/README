@@ -1,11 +1,11 @@
 Train deep Q network by feeding graphical features
 1. Note that you will need to install the following dependencies...
-@tensorflow
-@numpy
-@yahoo_finance
-@collections
-@datetime
-@matplotlib
+@ tensorflow
+@ numpy
+@ yahoo_finance
+@ collections
+@ datetime
+@ matplotlib
 
 2. Note that the following changes must be made before running the code.
 @ SAVE (line 14)
