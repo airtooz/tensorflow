@@ -2,6 +2,7 @@ from __future__ import print_function
 import tensorflow as tf
 import numpy as np
 import random
+import os
 from collections import deque
 from yahoo_finance import Share
 import datetime
@@ -23,24 +24,27 @@ FINAL_EPSILON = 0.1 # explore less, greedy most time, may tune it as you like, s
 DAY_LENGTH = 10 # the total days for a training data, also the dim of features.
 START = "2011-01-01" # Training data start date
 TRAIN_END = "2015-12-31" # Training data end date. Note that the test data will start right after this date.
+SAVE_IMAGE_DIR = "/home/airchen/Documents/coding/stock/" # Please type the directory where you want to save your images, note that you shall add /home/USERNAME/ before that directory, and a '/' at the very back!
 _ID = 2330 # By default, TSMC (2330)
 DPI = 80 # This can be revised, and as I assume this DPI shouldn't be too large or else it will overfit the data, but not too small either, or else the it may underfit the data. I will assume 32~64 will be worth trying, and see which gives better performance.
 
+# Get stock data from yahoo finance
 stock = Share(str(_ID)+'.TW')
 today = datetime.date.today()
-stock_data = stock.get_historical(START, str(today))
-print("Historical data since", START,": ", len(stock_data))
-stock_data.reverse()
+stock_data = stock.get_historical(START, str(today)) # Total data downloaded
+print("Historical data since", START,": ", len(stock_data)) # Total length of raw data
+stock_data.reverse() # Reverse the data since it starts from the latest data.
 
+#----------Remove the data with 0 volume---------#
 i = 0
 while( i < len(stock_data)):
     if (int(stock_data[i].get('Volume')) <= 0):
         stock_data.remove(stock_data[i])
         i = -1
     i += 1
-
+#----------Remove the data with 0 volume---------#
 print("Remove the datas with zero volume, total data ",len(stock_data))
-
+#----------Count training data length---------#
 train_data = stock.get_historical(START, TRAIN_END)
 train_data.reverse()
 
@@ -50,16 +54,18 @@ while( i < len(train_data)):
         train_data.remove(train_data[i])
         i = -1
     i += 1
+#----------Count training data length---------#
 
 # Calculate K and D
+BUFFER_DAYS = 9 # In this case, K and D needs a nine day buffer in order to calculate its first data, thus we set this to 9. Please see numerical_features code: dqn_predict.py for furthur info.
 
 K = []
 D = []
 util = []
 for i in xrange(len(stock_data)):
 	util.append(float(stock_data[i].get('Close')))
-	if i >= 8:
-		assert len(util) == 9
+	if i >= (BUFFER_DAYS-1):
+		assert len(util) == BUFFER_DAYS
 
 		#----RSV----		
 		if max(util) == min(util):
@@ -69,7 +75,7 @@ for i in xrange(len(stock_data)):
 		#----RSV----
 
 		#----K----
-		if i == 8:
+		if i == (BUFFER_DAYS-1):
 			temp_K = 0.5*0.6667 + RSV*0.3333
 			K.append(temp_K)
 		else:
@@ -78,36 +84,41 @@ for i in xrange(len(stock_data)):
 		#----K----
 
 		#----D----
-		if i == 8:
+		if i == (BUFFER_DAYS-1):
 			D.append(0.5*0.6667 + temp_K*0.3333)
 		else:
 			D.append(D[-1]*0.6667 + temp_K*0.3333)
 		#----D----
 		util.pop(0)
-		assert len(util) == 8
+		assert len(util) == (BUFFER_DAYS-1)
 
 # Feed in images
 
-def save_img(K,D, filename):
+def save_img(K,D, filename): # This is the function for saving the image of numerical features, since this part is important, I will type a document for explaining how to create other numerical features' images and feed them into the dqn.
+	print("Saving images into ",filename,"...")
 	for i in xrange(len(K)-DAY_LENGTH+1):
 		fig, ax = plt.subplots(nrows=1,ncols=1)
 		fig.set_size_inches(1,1)
-		ax.plot([i,i+1,i+2,i+3,i+4,i+5,i+6,i+7,i+8,i+9], [K[i], K[i+1], K[i+2], K[i+3], K[i+4], K[i+5], K[i+6], K[i+7], K[i+8], K[i+9]],'r',[i,i+1,i+2,i+3,i+4,i+5,i+6,i+7,i+8,i+9], [D[i],D[i+1],D[i+2],D[i+3],D[i+4],D[i+5],D[i+6],D[i+7],D[i+8],D[i+9]],'b')
-		ax.set_ylim(0,1)
-		plt.axis('off')
-		fig.savefig("/home/airchen/Documents/coding/stock/"+filename+'/'+filename+'_'+str(i)+'.png', dpi=DPI)
+		ax.plot([i,i+1,i+2,i+3,i+4,i+5,i+6,i+7,i+8,i+9], [K[i], K[i+1], K[i+2], K[i+3], K[i+4], K[i+5], K[i+6], K[i+7], K[i+8], K[i+9]],'r',[i,i+1,i+2,i+3,i+4,i+5,i+6,i+7,i+8,i+9], [D[i],D[i+1],D[i+2],D[i+3],D[i+4],D[i+5],D[i+6],D[i+7],D[i+8],D[i+9]],'b') # Please don't change the color 'r' and 'b', only change it if you understand how to manipulate the colors of matplot, I will intoduce it in the documents. Here, the plots are drawn with 10 days of data (DAY_LENGTH).
+		ax.set_ylim(0,1) # K and D are in the range of 0% and 100%, i.e. 0~1
+		plt.axis('off') # We close the axis in order to make our image clean with only the K, D curves
+		if not os.path.exists(SAVE_IMAGE_DIR+filename+'/'): # Create the folder storing the images, if you already have the folder, it will simply renew the images inside the current folder.
+			os.makedirs(SAVE_IMAGE_DIR+filename+'/')
+		fig.savefig(SAVE_IMAGE_DIR+filename+'/'+filename+'_'+str(i)+'.png', dpi=DPI) # "/home/airchen/Documents/coding/stock/"+filename+'/'+filename+'_'+str(i)+'.png' , is the directory and the file name for saving the images, the "filename" is a folder name, will be created under the SAVE_IMAGE_DIR.
 		fig.clear()
 		plt.close(fig)
-
-def get_img(file_dir):
+        print("Finished!!")
+        print()
+        
+def get_img(file_dir): # This is to simply get the images from the folder. The file_dir will be mentioned later.
 	img = mpimg.imread(file_dir)
 	return img
 
-relative_close = []
-for i in xrange(10,len(stock_data)):
-	relative_close.append(float(stock_data[i].get('Close'))-float(stock_data[i-1].get('Close')))
+relative_close = [] # How we will calculate the reward
+for i in xrange(DAY_LENGTH,len(stock_data)-4):
+	relative_close.append(float(stock_data[i+4].get('Close'))-float(stock_data[i-1].get('Close'))) # The close price of six days later minus the price tomorrow
 
-if SAVE:
+if SAVE: # renew or create the images if SAVE is True
 	save_img(K, D, "KD")
 
 data_length = len(relative_close)-DAY_LENGTH # discard the last image since no label is available
@@ -118,30 +129,32 @@ train_label = []
 assert len(K) == len(D)
 assert len(relative_close) < len(K)
 
+# Here is the image processing area, the processing method will also be in the documents. I will merely explain the usage here.
 for i in xrange(len(train_data)):
 	if (i+1) % 10 == 0:
 		print("Processing training data ",(i+1)," out of ",len(train_data))
-	file_dir = "/home/airchen/Documents/coding/stock/KD/KD_"+str(i)+".png"
+		
+	file_dir = "/home/airchen/Documents/coding/stock/KD/KD_"+str(i)+".png" # This file_dir is very important since it is the directory you get your images. Sometimes we won't save the images, we will want to use the already existed ones. Please specify the file_dir by following this example.
         temp = np.asarray(get_img(file_dir))
 	for pixel_x in xrange(len(temp)):
 		for pixel_y in xrange(len(temp[0])):
 			for depth in xrange(len(temp[0][0])):
-				if temp[pixel_x][pixel_y][0] != 1 and temp[pixel_x][pixel_y][1]!=1 and temp[pixel_x][pixel_y][2]==1:
+				if temp[pixel_x][pixel_y][0] != 1 and temp[pixel_x][pixel_y][1]!=1 and temp[pixel_x][pixel_y][2]==1: # Red 
 					temp[pixel_x][pixel_y][0] = 0.8
-				elif temp[pixel_x][pixel_y][0] == 1 and temp[pixel_x][pixel_y][1]!=1 and temp[pixel_x][pixel_y][2]!=1:
+				elif temp[pixel_x][pixel_y][0] == 1 and temp[pixel_x][pixel_y][1]!=1 and temp[pixel_x][pixel_y][2]!=1: # Blue
 					temp[pixel_x][pixel_y][0] = 0.4
-				elif temp[pixel_x][pixel_y][0] != 1 and temp[pixel_x][pixel_y][1]!=1 and temp[pixel_x][pixel_y][2]!=1:
+				elif temp[pixel_x][pixel_y][0] != 1 and temp[pixel_x][pixel_y][1]!=1 and temp[pixel_x][pixel_y][2]!=1: # Red and Blue cross
 					temp[pixel_x][pixel_y][0] = 0.
-				elif temp[pixel_x][pixel_y][0] == 1 and temp[pixel_x][pixel_y][1]==1 and temp[pixel_x][pixel_y][2]==1 and temp[pixel_x][pixel_y][3]==1:
+				elif temp[pixel_x][pixel_y][0] == 1 and temp[pixel_x][pixel_y][1]==1 and temp[pixel_x][pixel_y][2]==1 and temp[pixel_x][pixel_y][3]==1: # White
 					temp[pixel_x][pixel_y][0] = 1.
-	buff = temp[:,:,0]					
+	buff = temp[:,:,0] # We only take the first layer to feed into dqn.					
 	train_image.append(buff)
 	train_label.append(relative_close[i])
 train_image = np.asarray(train_image,dtype=np.float)
 
 test_image = []
 test_label = []
-for i in xrange(len(train_data),data_length):
+for i in xrange(len(train_data),data_length): # Some fo the images won't be used due to the length of relative_close_price is shorter than the data_length.
 	print("Processing testing data ",(i+1)-len(train_data)," out of ",data_length-len(train_data))
 	file_dir = "/home/airchen/Documents/coding/stock/KD/KD_"+str(i)+".png"
         temp = np.asarray(get_img(file_dir))
