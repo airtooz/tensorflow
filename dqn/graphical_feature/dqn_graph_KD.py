@@ -1,5 +1,4 @@
 from __future__ import print_function
-import gym
 import tensorflow as tf
 import numpy as np
 import random
@@ -11,22 +10,21 @@ import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 
-SAVE = False # True if you want to renew figure data, false otherwise
+SAVE = False # Very important!! True if you want to renew figure data, false otherwise.
 EPISODE = 10000 # Total episodes to run
-STEP = 300 # Step limitation in an episode
+STEP = 10000  # Step limitation in an episode, this is actually a bug in my code. This parameter should be equal or larger than the training data size, so here I revised into a large number. However, you may still tune this parameter by yourself, it won't occur any error.
 TEST = 10 # Test episode
 
-GAMMA = 0.9 # discount factor
-BUFFER_SIZE = 10000 # the replay buffer size
-BATCH_SIZE = 32 # minibatch size
-INITIAL_EPSILON = 0.8 # initial large, in order to explore more
-FINAL_EPSILON = 0.1 # explore less, greedy most time
-DAY_LENGTH = 10 # the total days for a training data, also the dim of features
-FEATURE_NUM = 5 # Currently: close price, volume, K, D, RSI9
-UPDATE_FREQUENCY = 100 # target freezing, weights update frequency
-START = "2011-01-01" # Data start date
-TRAIN_END = "2015-12-31" # Training end date
+GAMMA = 0.9 # discount factor, may tune it as you like
+BUFFER_SIZE = 10000 # the replay buffer size, may tune it as you like
+BATCH_SIZE = 32 # minibatch size, may tune it as you like, no larger than BUFFER_SIZE
+INITIAL_EPSILON = 0.8 # initial large, in order to explore more, may tune it as you like.
+FINAL_EPSILON = 0.1 # explore less, greedy most time, may tune it as you like, smaller than INITIAL_EPSILON.
+DAY_LENGTH = 10 # the total days for a training data, also the dim of features.
+START = "2011-01-01" # Training data start date
+TRAIN_END = "2015-12-31" # Training data end date. Note that the test data will start right after this date.
 _ID = 2330 # By default, TSMC (2330)
+DPI = 80 # This can be revised, and as I assume this DPI shouldn't be too large or else it will overfit the data, but not too small either, or else the it may underfit the data. I will assume 32~64 will be worth trying, and see which gives better performance.
 
 stock = Share(str(_ID)+'.TW')
 today = datetime.date.today()
@@ -53,35 +51,7 @@ while( i < len(train_data)):
         i = -1
     i += 1
 
-'''
-close = []
-for i in xrange(len(stock_data)):
-	close.append(float(stock_data[i].get('Close')))
-np.array(close)
-sigma = np.std(close)
-avg = np.mean(close)
-
-normalize_close = []
-for i in xrange(len(stock_data)):
-	normalize_close.append((close[i]-avg)/sigma)
-
-y_minlim = min(normalize_close)
-y_maxlim = max(normalize_close)
-'''
-
-
-
-
-# Feed in close price
-'''
-close = np.zeros((len(stock_data)-DAY_LENGTH, DAY_LENGTH), dtype=np.float)
-for i in range(0, len(close)):
-    for j in range(0, DAY_LENGTH):
-        close[i,j] = float(stock_data[i+j].get('Close'))
-print (close)
-'''
-
-# Five features: Close price, Volume, K, D, RSI 
+# Calculate K and D
 
 K = []
 D = []
@@ -125,7 +95,7 @@ def save_img(K,D, filename):
 		ax.plot([i,i+1,i+2,i+3,i+4,i+5,i+6,i+7,i+8,i+9], [K[i], K[i+1], K[i+2], K[i+3], K[i+4], K[i+5], K[i+6], K[i+7], K[i+8], K[i+9]],'r',[i,i+1,i+2,i+3,i+4,i+5,i+6,i+7,i+8,i+9], [D[i],D[i+1],D[i+2],D[i+3],D[i+4],D[i+5],D[i+6],D[i+7],D[i+8],D[i+9]],'b')
 		ax.set_ylim(0,1)
 		plt.axis('off')
-		fig.savefig("/home/airchen/Documents/coding/stock/"+filename+'/'+filename+'_'+str(i)+'.png', dpi=80)
+		fig.savefig("/home/airchen/Documents/coding/stock/"+filename+'/'+filename+'_'+str(i)+'.png', dpi=DPI)
 		fig.clear()
 		plt.close(fig)
 
@@ -136,9 +106,6 @@ def get_img(file_dir):
 relative_close = []
 for i in xrange(10,len(stock_data)):
 	relative_close.append(float(stock_data[i].get('Close'))-float(stock_data[i-1].get('Close')))
-
-print(len(K))
-print(len(relative_close))
 
 if SAVE:
 	save_img(K, D, "KD")
@@ -167,8 +134,6 @@ for i in xrange(len(train_data)):
 					temp[pixel_x][pixel_y][0] = 0.
 				elif temp[pixel_x][pixel_y][0] == 1 and temp[pixel_x][pixel_y][1]==1 and temp[pixel_x][pixel_y][2]==1 and temp[pixel_x][pixel_y][3]==1:
 					temp[pixel_x][pixel_y][0] = 1.
-				else:
-					print("Never come here!!!")
 	buff = temp[:,:,0]					
 	train_image.append(buff)
 	train_label.append(relative_close[i])
@@ -192,22 +157,11 @@ for i in xrange(len(train_data),data_length):
 					temp[pixel_x][pixel_y][0] = 0.
 				elif temp[pixel_x][pixel_y][0] == 1 and temp[pixel_x][pixel_y][1]==1 and temp[pixel_x][pixel_y][2]==1 and temp[pixel_x][pixel_y][3]==1:
 					temp[pixel_x][pixel_y][0] = 1.
-				else:
-					print("Never come here!!!")
 	buff = temp[:,:,0]					
 	test_image.append(buff)
 	test_label.append(relative_close[i])
 test_image = np.asarray(test_image,dtype=np.float)
-
-#assert len(train_image) + len(test_image) == data_length
 	
-'''
-gray = []
-for i in xrange(len(image)):
-	gray.append(image[i])
-gray = np.asarray(gray,dtype=np.float)
-print(gray.shape)
-'''
 class TWStock():
 	def __init__(self,train_image,test_image,train_label,test_label):
 		self.train_image = train_image
@@ -219,16 +173,12 @@ class TWStock():
 		print("Training Data: ",len(train_image))
 		print("Testing Data: ",len(test_image))
 
-	def render(self):
-		return
-
 	def train_reset(self):
 		self.stock_index = 0
 		return self.train_image[self.stock_index]
 
 	def test_reset(self):
 		self.stock_index = 0
-        print("Processing data ",(i+1)-len(train_data)," out of ",data_length-len(train_data))
 		return self.test_image[self.stock_index]
 		
 	# 0: observe, 1: having stock, 2: no stock
@@ -273,13 +223,6 @@ class DQN():
 		self.epsilon = INITIAL_EPSILON
 		#self.state_dim = [1,80,80,1]
 		self.action_dim = 3
-		'''
-		self.total_updates = 0
-		self.update_target = []
-		self.last_target_layer = None
-		self.last_policy_layer = None
-		self.target_update_frequency = UPDATE_FREQUENCY
-		'''
 		self.create_Q_network()
 		self.create_training_method()
 
@@ -304,42 +247,23 @@ class DQN():
 		return self.t_session, self.merged_summ, self.R,self.T, self.writer
 
 	def create_Q_network(self): 
-		'''
-		# Use MLP
-		# weights and biase
-		W1 = tf.Variable(tf.truncated_normal([self.state_dim,20]))
-		b1 = tf.Variable(tf.constant(0.01, shape = [20]))
-		W2 = tf.Variable(tf.truncated_normal([20,self.action_dim]))
-		b2 = tf.Variable(tf.constant(0.01, shape = [self.action_dim]))
-
-		# Layer implementation
-		self.state_input = tf.placeholder("float",[None,self.state_dim])
-		hidden = tf.nn.relu(tf.matmul(self.state_input,W1) + b1)
-		self.Q_value = tf.matmul(hidden,W2) + b2
-		'''
-		'''
-		# Target freezing parameters
-		policy_input = None
-		target_input = None
-		'''
-		# Use CNN
+		# Use CNN, we won't use MLP for images...
 		# weights and biases
-		W_conv1 = tf.Variable(tf.truncated_normal(shape = [10,10,1,4],stddev = 0.01))
-		b_conv1 = tf.Variable(tf.constant(0.01,shape = [4]))
-		W_conv2 = tf.Variable(tf.truncated_normal(shape = [5,5,4,8],stddev = 0.01))
-		b_conv2 = tf.Variable(tf.constant(0.01,shape = [8]))
-		W_fc = tf.Variable(tf.truncated_normal(shape = [80*80*8,self.action_dim],stddev = 0.01))
-		#W_fc = tf.Variable(tf.truncated_normal(shape = [400,self.action_dim],stddev = 0.01))
+		BIAS_SHAPE1 = 4 # May tune it as you like
+		BIAS_SHAPE2 = 8 # May tune it as you like
+		W_conv1 = tf.Variable(tf.truncated_normal(shape = [10,10,1,BIAS_SHAPE1],stddev = 0.01)) # The fist and second parameter is the filter height and width...you may tune it but either of them can't exceed DPI !
+		b_conv1 = tf.Variable(tf.constant(0.01,shape = [BIAS_SHAPE1]))
+		W_conv2 = tf.Variable(tf.truncated_normal(shape = [5,5,BIAS_SHAPE1,BIAS_SHAPE2],stddev = 0.01)) # The fist and second parameter is the filter height and width...you may tune it but either of them can't exceed DPI !
+		b_conv2 = tf.Variable(tf.constant(0.01,shape = [BIAS_SHAPE2]))
+		W_fc = tf.Variable(tf.truncated_normal(shape = [DPI*DPI*BIAS_SHAPE2,self.action_dim],stddev = 0.01))
 		b_fc = tf.Variable(tf.constant(0.01,shape = [self.action_dim]))
 
-		# Layer implementation
-		self.state_input = tf.placeholder("float",[None,80,80])
-		x = tf.reshape(self.state_input,[-1,80,80,1])
-		#x = tf.reshape(self.state_input,[-1,10,1,1])
+		# Layer implementation, dont' change these only if you want to add more layers
+		self.state_input = tf.placeholder("float",[None,DPI,DPI])
+		x = tf.reshape(self.state_input,[-1,DPI,DPI,1])
 		h_conv1 = tf.nn.relu(tf.nn.conv2d(x,W_conv1,strides = [1,1,1,1],padding = 'SAME') + b_conv1)
 		h_conv2 = tf.nn.relu(tf.nn.conv2d(h_conv1,W_conv2,strides = [1,1,1,1],padding = 'SAME') + b_conv2)
-		hidden = tf.reshape(h_conv2,[-1,80*80*8])
-		#hidden = tf.reshape(h_conv2,[-1,400])
+		hidden = tf.reshape(h_conv2,[-1,DPI*DPI*BIAS_SHAPE2])
 		self.Q_value = tf.matmul(hidden,W_fc) + b_fc
 		
 
@@ -348,7 +272,7 @@ class DQN():
 		self.y_input = tf.placeholder("float",[None])
 		Q_action = tf.reduce_sum(tf.mul(self.Q_value,self.action_input), reduction_indices = 1)
 		self.cost = tf.reduce_mean(tf.square(self.y_input - Q_action))
-		self.optimizer = tf.train.AdamOptimizer(0.0001).minimize(self.cost)
+		self.optimizer = tf.train.AdamOptimizer(0.0001).minimize(self.cost) # There are many optimizers to use, e.g. RMSPropOptimizer..., please see tensorflow API for furthur info.
 
 	def train_Q_network(self):
 		self.time_step+=1
@@ -370,11 +294,7 @@ class DQN():
 				y_batch.append(reward_batch[i])
 			else:
 				y_batch.append(reward_batch[i] + GAMMA*np.max(Q_value_batch[i]))
-		'''
-		for i in xrange(BATCH_SIZE):
-			for j in xrange(80):
-				print(state_batch[i][j])
-		'''
+				
 		self.optimizer.run(feed_dict = {
 			self.y_input:y_batch,
 			self.action_input:action_batch,
@@ -428,7 +348,6 @@ def main():
 			action1_count = 0
 			action2_count = 0
 			for j in xrange(STEP):
-				env.render()
 				action = agent.action(state)
 				if action == 0:
 					action0_count += 1
@@ -454,7 +373,6 @@ def main():
 			action1_count = 0
 			action2_count = 0
 			for j in xrange(STEP):
-				env.render()
 				action = agent.action(state) # direct action for test
 				if action == 0:
 					action0_count += 1
