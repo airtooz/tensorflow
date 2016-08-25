@@ -117,7 +117,7 @@ for i in xrange(len(stock_data)):
 
 box = np.zeros((len(data)-(BUFFER_DAYS-1),DAY_LENGTH*FEATURE_NUM), dtype = np.float) # The size of the data
 
-# Assigning the data to the box, dor each row, there includes FEATURE_NUM*DAY_LENGTH data, there are FEATURE_NUM features and DAY_LENGTH data for a batch, we will reshape this when we feed into the placeholder.
+# Assigning the data to the box, for each row, there includes FEATURE_NUM*DAY_LENGTH data, there are FEATURE_NUM features and DAY_LENGTH data for a batch, we will reshape this when we feed into the placeholder.
 for m in xrange(len(data)-(BUFFER_DAYS-1)):
 	for i in xrange(FEATURE_NUM):
 		for j in xrange(DAY_LENGTH):
