@@ -6,19 +6,19 @@ from collections import deque
 from yahoo_finance import Share
 import datetime
 
-EPISODE = 10000 # Total episodes to run
+EPISODE = 10000 # Total episodes to run, feel free to tune it.
 STEP = 10000 # Step limitation in an episode, this is actually a bug in my code. This parameter should be equal or larger than the training data size, so here I revised into a large number. However, you may still tune this parameter by yourself, it won't occur any error.
 TEST = 10 # Test episode
 
-GAMMA = 0.9 # discount factor
-BUFFER_SIZE = 10000 # the replay buffer size
-BATCH_SIZE = 32 # minibatch size
-INITIAL_EPSILON = 0.8 # initial large, in order to explore more
-FINAL_EPSILON = 0.1 # explore less, greedy most time
-DAY_LENGTH = 10 # the total days for a training data, also the dim of features
-FEATURE_NUM = 8 # Currently: close price, volume, K, D, RSI9, MA5, MA20, MA5-MA20
+GAMMA = 0.9 # discount factor, may tune it as you like
+BUFFER_SIZE = 10000 # the replay buffer size, may tune it as you like
+BATCH_SIZE = 32 # minibatch size, may tune it as you like, no larger than BUFFER_SIZE
+INITIAL_EPSILON = 0.8 # initial large, in order to explore more, may tune it as you like.
+FINAL_EPSILON = 0.1 # explore less, greedy most time, may tune it as you like, smaller than INITIAL_EPSILON.
+DAY_LENGTH = 10 # the total days for a training data, also the dim of features.
+FEATURE_NUM = 8 # Currently: close price, volume, K, D, RSI9, MA5, MA20, MA5-MA20. Remember to change this parameter if you add any new feature or remove any of them.
 START = "2011-01-01" # Training data start date
-TRAIN_END = "2015-12-31" # Training data end date
+TRAIN_END = "2015-12-31" # Training data end date. Note that the test data will start right after this date.
 _ID = 2330 # By default, TSMC (2330)
 
 # Get stock data from yahoo finance
@@ -144,7 +144,7 @@ class TWStock():
 	# 0: Observe, 1: Buy, 2: Sell
 	def train_step(self,action): # For training, feed training data
 		self.stock_index+=1 # Just as I mentioned before, this means to go on to the next batch(FEATURE_NUM*DAY_LENGTH) of data
-		action_reward = self.train_data[self.stock_index+1][0] - self.train_data[self.stock_index][0] # The reward is the close price for tomorrow minus today's
+		action_reward = self.train_data[self.stock_index+1][DAY_LENGTH-1] - self.train_data[self.stock_index][DAY_LENGTH-1] # The reward is the close price for tomorrow minus today's
 		if action == 0:
 			action_reward = 0 # Do nothing, 0 reward
 		elif action == 2:
@@ -158,7 +158,7 @@ class TWStock():
 
 	def test_step(self,action): # for testing, feed testing data
 		self.stock_index+=1
-		action_reward = self.test_data[self.stock_index+1][0] - self.test_data[self.stock_index][0]
+		action_reward = self.test_data[self.stock_index+1][DAY_LENGTH-1] - self.test_data[self.stock_index][DAY_LENGTH-1]
 		if action == 0:
 			action_reward = 0
 		elif action == 2:
@@ -175,14 +175,12 @@ class DQN():
 		# experience replay
 		self.replay_buffer = deque()
 		# initialize parameters
-		self.time_step = 0
 		self.epsilon = INITIAL_EPSILON
-		#self.state_dim = [1,80,80,1]
 		self.action_dim = 3 # Totally three actions
 		self.create_Q_network()
 		self.create_training_method()
 
-		# create session
+		# create session, used for launching tensorflow and tensorboard
 		self.t_session = tf.InteractiveSession()
 		self.R = tf.placeholder("float", shape = None)
 		self.T = tf.placeholder("float", shape = None)
@@ -190,7 +188,7 @@ class DQN():
 		T_summ = tf.scalar_summary(tags = "training_reward", values = self.T)
 
 		self.merged_summ = tf.merge_all_summaries()
-		self.writer = tf.train.SummaryWriter(logdir = "/home/airchen/Documents/coding/stock", graph = self.t_session.graph)
+		self.writer = tf.train.SummaryWriter(logdir = "/home/airchen/Documents/coding/stock", graph = self.t_session.graph) # The logdir is the directory you want to log your tensorboard event files, please feel free to change it, and remember you want to always add: /home/USERNAME/ before the directory.
 		
 		self.t_session.run(tf.initialize_all_variables())
 	
@@ -215,9 +213,9 @@ class DQN():
 		# weights and biases
 		BIAS_SHAPE1 = 8 # May tune it as you like
 		BIAS_SHAPE2 = 4 # May tune it as you like
-		W_conv1 = tf.Variable(tf.truncated_normal(shape = [FEATURE_NUM,5,1,BIAS_SHAPE1],stddev = 0.01))
+		W_conv1 = tf.Variable(tf.truncated_normal(shape = [FEATURE_NUM,5,1,BIAS_SHAPE1],stddev = 0.01)) # The second parameter is the filter width...you may tune it but can't exceed DAY_LENGTH !
 		b_conv1 = tf.Variable(tf.constant(0.01,shape = [BIAS_SHAPE1]))
-		W_conv2 = tf.Variable(tf.truncated_normal(shape = [FEATURE_NUM,2,BIAS_SHAPE1,BIAS_SHAPE2],stddev = 0.01))
+		W_conv2 = tf.Variable(tf.truncated_normal(shape = [FEATURE_NUM,2,BIAS_SHAPE1,BIAS_SHAPE2],stddev = 0.01)) # The second parameter is the filter width...you may tune it but can't exceed DAY_LENGTH !
 		b_conv2 = tf.Variable(tf.constant(0.01,shape = [BIAS_SHAPE2]))
 		W_fc = tf.Variable(tf.truncated_normal(shape = [FEATURE_NUM*DAY_LENGTH*BIAS_SHAPE2,self.action_dim],stddev = 0.01))
 		b_fc = tf.Variable(tf.constant(0.01,shape = [self.action_dim]))
@@ -235,11 +233,10 @@ class DQN():
 		self.action_input = tf.placeholder("float",[None,self.action_dim]) # one hot key vector
 		self.y_input = tf.placeholder("float",[None])
 		Q_action = tf.reduce_sum(tf.mul(self.Q_value,self.action_input), reduction_indices = 1)
-		self.cost = tf.reduce_mean(tf.square(self.y_input - Q_action))
-		self.optimizer = tf.train.AdamOptimizer(0.0001).minimize(self.cost)
+		self.cost = tf.reduce_mean(tf.square(self.y_input - Q_action)) # Our cost.
+		self.optimizer = tf.train.AdamOptimizer(0.0001).minimize(self.cost) # There are many optimizers to use, e.g. RMSPropOptimizer..., please see tensorflow API for furthur info.
 
 	def train_Q_network(self):
-		self.time_step+=1
 		# Step 1: obtain random minibatch from replay memory
 		minibatch = random.sample(self.replay_buffer, BATCH_SIZE)
 		state_batch = [data[0] for data in minibatch]
@@ -288,7 +285,7 @@ class DQN():
 def main():
 	env = TWStock(box, len(train_data)) # Initialize environment
 	agent = DQN(env) # Initialize dqn agent
-	sess,merged,R,T,writer = agent.get_summ()
+	sess,merged,R,T,writer = agent.get_summ() # Get summary for tensorboard
 
 	for episode in xrange(EPISODE):
 		state = env.train_reset() # reset() returns observation
@@ -298,9 +295,11 @@ def main():
 			next_state,reward,done,info = env.train_step(action)
 			agent.perceive(state,action,reward,next_state,done)
 			state = next_state
-			if done:
+			if (step+1) % 200 == 0: # Print out current progress
+                                print("Running episode:",episode, "Step:", step+1)
+			if done: # break only if it run to the end of the training data, or when stock_index is equal to STEP, but it should be better satisfying the former condition.
 				break
-		if episode % 20 == 0:
+		if episode % 10 == 0: # for every 10 episodes, print out the current training reward and the test reward.
 			train_reward = 0.
 			for i in xrange(TEST):
 				state = env.train_reset()
