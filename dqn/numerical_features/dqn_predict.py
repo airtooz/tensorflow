@@ -156,7 +156,7 @@ class TWStock():
            		stock_done = False
 		return self.train_data[self.stock_index], action_reward, stock_done, 0
 
-	def test_step(self,action): # for testing, feed testing data
+	def test_step(self,action): # for testing, feed testing data. Comments similar to the train_step function
 		self.stock_index+=1
 		action_reward = self.test_data[self.stock_index+1][DAY_LENGTH-1] - self.test_data[self.stock_index][DAY_LENGTH-1]
 		if action == 0:
@@ -220,7 +220,7 @@ class DQN():
 		W_fc = tf.Variable(tf.truncated_normal(shape = [FEATURE_NUM*DAY_LENGTH*BIAS_SHAPE2,self.action_dim],stddev = 0.01))
 		b_fc = tf.Variable(tf.constant(0.01,shape = [self.action_dim]))
 
-		# Layer implementation
+		# Layer implementation, do not change any of these in case you want to add more layers.
 		self.state_input = tf.placeholder("float",[None,FEATURE_NUM*DAY_LENGTH])
 		x = tf.reshape(self.state_input,[-1,FEATURE_NUM,DAY_LENGTH,1])
 		h_conv1 = tf.nn.relu(tf.nn.conv2d(x,W_conv1,strides = [1,1,1,1],padding = 'SAME') + b_conv1)
@@ -255,7 +255,7 @@ class DQN():
 				y_batch.append(reward_batch[i])
 			else:
 				y_batch.append(reward_batch[i] + GAMMA*np.max(Q_value_batch[i]))
-		
+		#Optimize our cost
 		self.optimizer.run(feed_dict = {
 			self.y_input:y_batch,
 			self.action_input:action_batch,
@@ -263,21 +263,21 @@ class DQN():
 
 	def egreedy_action(self,state): # during training 
 		Q_value = self.Q_value.eval(feed_dict = {self.state_input:[state]},session = self.t_session)[0] # Unknown
-		if random.random() <= self.epsilon:
+		if random.random() <= self.epsilon: # Random action by probability, i.e. exploration
 			return random.randint(0,self.action_dim-1)
 		else:
 			return np.argmax(Q_value)
-		self.epsilon -= (Initial_EPSILON-FINAL_EPSILON)/10000
+		self.epsilon -= (Initial_EPSILON-FINAL_EPSILON)/10000 # Random probability drop gradually.
 	
 	def action(self,state): # during testing
-		return np.argmax(self.Q_value.eval(feed_dict = {self.state_input:[state]})[0])
+		return np.argmax(self.Q_value.eval(feed_dict = {self.state_input:[state]})[0]) # No random action
 		
 	def perceive(self,state,action,reward,next_state,done):
 		# assign the to be made action into a one hot vector
 		one_hot_action = np.zeros(self.action_dim)
 		one_hot_action[action] = 1
-		self.replay_buffer.append((state,one_hot_action,reward,next_state,done))
-		if len(self.replay_buffer) > BUFFER_SIZE:
+		self.replay_buffer.append((state,one_hot_action,reward,next_state,done)) # Add it into memory queue
+		if len(self.replay_buffer) > BUFFER_SIZE: # exceed the BUFFER_SIZE, pop out the memory from the other side, i.e. FIFO.
 			self.replay_buffer.popleft()
 		if len(self.replay_buffer) > BATCH_SIZE:
 			self.train_Q_network()
@@ -322,7 +322,7 @@ def main():
 				if i == 0:
 					print("Action 0: ",action0_count,". Action 1: ", action1_count, ". Action 2: ", action2_count)
 			print()
-			avg_train_reward = train_reward/TEST
+			avg_train_reward = train_reward/TEST # Average training reward.
 		
 			total_reward = 0.
 			for i in xrange(TEST):
@@ -345,8 +345,10 @@ def main():
 						break
 				if i == 0:
 					print("Action 0: ",action0_count,". Action 1: ", action1_count, ". Action 2: ", action2_count)
-			avg_reward = total_reward/TEST
+			avg_reward = total_reward/TEST # Average test reward
+			
 			print ("Episode: ", episode,"Training Average Reward: ",avg_train_reward, " Evaluation Average Reward: ",avg_reward)
+
 			record = sess.run(merged, feed_dict={R:avg_reward,T:avg_train_reward})
 			writer.add_summary(record, global_step = episode)
 			writer.flush() # Remember to add this or else you will see nothing on the tensorboard
