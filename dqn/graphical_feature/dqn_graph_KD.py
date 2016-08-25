@@ -154,7 +154,7 @@ train_image = np.asarray(train_image,dtype=np.float)
 
 test_image = []
 test_label = []
-for i in xrange(len(train_data),data_length): # Some fo the images won't be used due to the length of relative_close_price is shorter than the data_length.
+for i in xrange(len(train_data),data_length): # Some of the images won't be used due to the length of relative_close_price is shorter than the data_length.
 	print("Processing testing data ",(i+1)-len(train_data)," out of ",data_length-len(train_data))
 	file_dir = "/home/airchen/Documents/coding/stock/KD/KD_"+str(i)+".png"
         temp = np.asarray(get_img(file_dir))
