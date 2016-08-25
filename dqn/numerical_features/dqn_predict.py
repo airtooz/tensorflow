@@ -144,13 +144,13 @@ class TWStock():
 	# 0: Observe, 1: Buy, 2: Sell
 	def train_step(self,action): # For training, feed training data
 		self.stock_index+=1 # Just as I mentioned before, this means to go on to the next batch(FEATURE_NUM*DAY_LENGTH) of data
-		action_reward = self.train_data[self.stock_index+1][DAY_LENGTH-1] - self.train_data[self.stock_index][DAY_LENGTH-1] # The reward is the close price for tomorrow minus today's
+		action_reward = self.train_data[self.stock_index+5][DAY_LENGTH-1] - self.train_data[self.stock_index+1][DAY_LENGTH-1] # The reward is the close price for five days later minus tomorrow's
 		if action == 0:
 			action_reward = 0 # Do nothing, 0 reward
 		elif action == 2:
 			action_reward = -1*action_reward
 		stock_done = False
-		if(self.stock_index)>= len(self.train_data)-2:
+		if(self.stock_index)>= len(self.train_data)-6:
 			stock_done = True # Already at the final state(last batch of data)
         	else:
            		stock_done = False
@@ -158,13 +158,13 @@ class TWStock():
 
 	def test_step(self,action): # for testing, feed testing data. Comments similar to the train_step function
 		self.stock_index+=1
-		action_reward = self.test_data[self.stock_index+1][DAY_LENGTH-1] - self.test_data[self.stock_index][DAY_LENGTH-1]
+		action_reward = self.test_data[self.stock_index+5][DAY_LENGTH-1] - self.test_data[self.stock_index+1][DAY_LENGTH-1]
 		if action == 0:
 			action_reward = 0
 		elif action == 2:
 			action_reward = -1*action_reward
 		stock_done = False
-		if(self.stock_index)>= len(self.test_data)-2:
+		if(self.stock_index)>= len(self.test_data)-6:
 			stock_done = True
         	else:
            		stock_done = False
